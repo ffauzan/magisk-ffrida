@@ -1,0 +1,5 @@
+build/
+downloads/
+.venv/
+NEW_TAG.txt
+__pycache__/

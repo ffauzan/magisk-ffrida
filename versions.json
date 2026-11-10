@@ -1,0 +1,21 @@
+{
+  "binary_name": "medcodec",
+  "module_id": "magisk-ffrida",
+  "module_name": "Frida Stealth",
+  "author": "magisk-ffrida",
+  "markers": [
+    "frida-server",
+    "frida-agent",
+    "frida:rpc",
+    "frida-main-loop",
+    "frida-agent-container",
+    "frida-android-helper",
+    "frida-zymbiote",
+    "gum-js-loop",
+    "gmain",
+    "gdbus",
+    "pool-frida",
+    "pool-spawner",
+    "jit-cache"
+  ]
+}

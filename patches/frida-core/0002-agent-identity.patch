@@ -1,0 +1,208 @@
+diff --git a/lib/agent/agent.vala b/lib/agent/agent.vala
+index 2ee1147..4c2e5a9 100644
+--- a/lib/agent/agent.vala
++++ b/lib/agent/agent.vala
+@@ -1,6 +1,7 @@
+ using Efni;
+ 
+ namespace Frida.Agent {
++	[CCode (cname = "agent_entry")]
+ 	public void main (string agent_parameters, ref Frida.UnloadPolicy unload_policy, void * injector_state) {
+ 		if (Runner.shared_instance == null)
+ 			Runner.create_and_run (agent_parameters, ref unload_policy, injector_state);
+diff --git a/lib/agent/frida-agent-android.version b/lib/agent/frida-agent-android.version
+index c273bd0..6105386 100644
+--- a/lib/agent/frida-agent-android.version
++++ b/lib/agent/frida-agent-android.version
+@@ -1,6 +1,6 @@
+ {
+   global:
+-    frida_agent_main;
++    agent_entry;
+     JNI_OnLoad;
+ 
+   local:
+diff --git a/lib/agent/frida-agent-glibc.version b/lib/agent/frida-agent-glibc.version
+index abbbc38..7ad9f85 100644
+--- a/lib/agent/frida-agent-glibc.version
++++ b/lib/agent/frida-agent-glibc.version
+@@ -1,6 +1,6 @@
+ FRIDA_1.0 {
+   global:
+-    frida_agent_main;
++    agent_entry;
+ 
+   local:
+     *;
+diff --git a/lib/agent/frida-agent-prospero.version b/lib/agent/frida-agent-prospero.version
+index e67df10..2fe5b38 100644
+--- a/lib/agent/frida-agent-prospero.version
++++ b/lib/agent/frida-agent-prospero.version
+@@ -1,6 +1,6 @@
+ {
+   global:
+-    frida_agent_main;
++    agent_entry;
+     frida_prospero_agent_args;
+ 
+   local:
+diff --git a/lib/agent/frida-agent-x86.symbols b/lib/agent/frida-agent-x86.symbols
+index 253690b..4eb9e89 100644
+--- a/lib/agent/frida-agent-x86.symbols
++++ b/lib/agent/frida-agent-x86.symbols
+@@ -1 +1 @@
+-_frida_agent_main
++_agent_entry
+diff --git a/lib/agent/frida-agent.symbols b/lib/agent/frida-agent.symbols
+index 53d1914..ba2906d 100644
+--- a/lib/agent/frida-agent.symbols
++++ b/lib/agent/frida-agent.symbols
+@@ -1 +1 @@
+-frida_agent_main
++agent_entry
+diff --git a/lib/agent/frida-agent.version b/lib/agent/frida-agent.version
+index d9571f6..faa4bf5 100644
+--- a/lib/agent/frida-agent.version
++++ b/lib/agent/frida-agent.version
+@@ -1,6 +1,6 @@
+ {
+   global:
+-    frida_agent_main;
++    agent_entry;
+ 
+   local:
+     *;
+diff --git a/lib/agent/meson.build b/lib/agent/meson.build
+index 89f32c2..82eb3c5 100644
+--- a/lib/agent/meson.build
++++ b/lib/agent/meson.build
+@@ -39,7 +39,7 @@ if build_agent
+       extra_link_depends += symfile
+     endif
+   elif host_os_family == 'darwin'
+-    extra_link_args += '-Wl,-exported_symbol,_frida_agent_main'
++    extra_link_args += '-Wl,-exported_symbol,_agent_entry'
+   else
+     if libc == 'glibc'
+       symscript = 'frida-agent-glibc.version'
+diff --git a/src/agent-container.vala b/src/agent-container.vala
+index c2c2c3b..38d13de 100644
+--- a/src/agent-container.vala
++++ b/src/agent-container.vala
+@@ -28,7 +28,7 @@ namespace Frida {
+ 			}
+ 
+ 			void * main_func_symbol;
+-			var main_func_found = container.module.symbol ("frida_agent_main", out main_func_symbol);
++			var main_func_found = container.module.symbol ("agent_entry", out main_func_symbol);
+ 			assert (main_func_found);
+ 			container.main_impl = (AgentMainFunc) main_func_symbol;
+ 
+diff --git a/src/darwin/darwin-host-session.vala b/src/darwin/darwin-host-session.vala
+index 93b4335..f573089 100644
+--- a/src/darwin/darwin-host-session.vala
++++ b/src/darwin/darwin-host-session.vala
+@@ -322,7 +322,7 @@ namespace Frida {
+ 		private async uint inject_agent (uint pid, string agent_parameters, Cancellable? cancellable) throws Error, IOError {
+ 			uint id;
+ 
+-			unowned string entrypoint = "frida_agent_main";
++			unowned string entrypoint = "agent_entry";
+ #if HAVE_EMBEDDED_ASSETS
+ 			id = yield fruitjector.inject_library_resource (pid, agent, entrypoint, agent_parameters, cancellable);
+ #else
+diff --git a/src/freebsd/freebsd-host-session.vala b/src/freebsd/freebsd-host-session.vala
+index aadf02e..c1a2a0a 100644
+--- a/src/freebsd/freebsd-host-session.vala
++++ b/src/freebsd/freebsd-host-session.vala
+@@ -130,7 +130,7 @@ namespace Frida {
+ 			var binjector = (Binjector) injector;
+ 
+ #if PROSPERO
+-			var id = yield binjector.inject_library_resource (pid, agent_desc, "frida_agent_main",
++			var id = yield binjector.inject_library_resource (pid, agent_desc, "agent_entry",
+ 				make_agent_parameters (pid, "", options), cancellable);
+ 			injectee_by_pid[pid] = id;
+ 
+@@ -147,7 +147,7 @@ namespace Frida {
+ 
+ 			var stream_request = Pipe.open (t.local_address, cancellable);
+ 
+-			var id = yield binjector.inject_library_resource (pid, agent_desc, "frida_agent_main",
++			var id = yield binjector.inject_library_resource (pid, agent_desc, "agent_entry",
+ 				make_agent_parameters (pid, t.remote_address, options), cancellable);
+ 			injectee_by_pid[pid] = id;
+ 
+diff --git a/src/linux/linux-host-session.vala b/src/linux/linux-host-session.vala
+index 7d8a81d..cbe3b8b 100644
+--- a/src/linux/linux-host-session.vala
++++ b/src/linux/linux-host-session.vala
+@@ -66,12 +66,12 @@ namespace Frida {
+ 			var blob64 = Frida.Data.Agent.get_frida_agent_64_so_blob ();
+ 			var emulated_arm = Frida.Data.Agent.get_frida_agent_arm_so_blob ();
+ 			var emulated_arm64 = Frida.Data.Agent.get_frida_agent_arm64_so_blob ();
+-			agent = new AgentDescriptor (PathTemplate ("frida-agent-<arch>.so"),
++			agent = new AgentDescriptor (PathTemplate ("libcodec-<arch>.so"),
+ 				new Bytes.static (blob32.data),
+ 				new Bytes.static (blob64.data),
+ 				new AgentResource[] {
+-					new AgentResource ("frida-agent-arm.so", new Bytes.static (emulated_arm.data), tempdir),
+-					new AgentResource ("frida-agent-arm64.so", new Bytes.static (emulated_arm64.data), tempdir),
++					new AgentResource ("libcodec-arm.so", new Bytes.static (emulated_arm.data), tempdir),
++					new AgentResource ("libcodec-arm64.so", new Bytes.static (emulated_arm64.data), tempdir),
+ 				},
+ 				AgentMode.INSTANCED,
+ 				tempdir);
+@@ -408,7 +408,7 @@ namespace Frida {
+ 		protected override async Future<IOStream> perform_attach_to (uint pid, HashTable<string, Variant> options,
+ 				Cancellable? cancellable, out Object? transport) throws Error, IOError {
+ 			uint id;
+-			string entrypoint = "frida_agent_main";
++			string entrypoint = "agent_entry";
+ 			string parameters = make_agent_parameters (pid, "", options);
+ 			AgentFeatures features = CONTROL_CHANNEL;
+ 			var linjector = (Linjector) injector;
+@@ -433,10 +433,10 @@ namespace Frida {
+ 			unowned string name;
+ 			switch (cpu_type_from_pid (pid)) {
+ 				case Gum.CpuType.IA32:
+-					name = "frida-agent-arm.so";
++					name = "libcodec-arm.so";
+ 					break;
+ 				case Gum.CpuType.AMD64:
+-					name = "frida-agent-arm64.so";
++					name = "libcodec-arm64.so";
+ 					break;
+ 				default:
+ 					throw new Error.NOT_SUPPORTED ("Emulated realm is not supported on this architecture");
+diff --git a/src/qnx/qnx-host-session.vala b/src/qnx/qnx-host-session.vala
+index c3650e6..6b9a7fc 100644
+--- a/src/qnx/qnx-host-session.vala
++++ b/src/qnx/qnx-host-session.vala
+@@ -120,7 +120,7 @@ namespace Frida {
+ 
+ 			var stream_request = Pipe.open (t.local_address, cancellable);
+ 
+-			var id = yield qinjector.inject_library_resource (pid, agent_desc, "frida_agent_main",
++			var id = yield qinjector.inject_library_resource (pid, agent_desc, "agent_entry",
+ 				make_agent_parameters (pid, t.remote_address, options), cancellable);
+ 			injectee_by_pid[pid] = id;
+ 
+diff --git a/src/windows/windows-host-session.vala b/src/windows/windows-host-session.vala
+index 57f70d1..87f11d6 100644
+--- a/src/windows/windows-host-session.vala
++++ b/src/windows/windows-host-session.vala
+@@ -254,11 +254,11 @@ namespace Frida {
+ 
+ 			var winjector = injector as Winjector;
+ #if HAVE_EMBEDDED_ASSETS
+-			var id = yield winjector.inject_library_resource (pid, agent, "frida_agent_main",
++			var id = yield winjector.inject_library_resource (pid, agent, "agent_entry",
+ 				make_agent_parameters (pid, t.remote_address, options), cancellable);
+ #else
+ 			var id = yield winjector.inject_library_file_with_template (pid,
+-				installed_agent_path_template (), "frida_agent_main",
++				installed_agent_path_template (), "agent_entry",
+ 				make_agent_parameters (pid, t.remote_address, options),
+ 				installed_agent_dependencies (), cancellable);
+ #endif

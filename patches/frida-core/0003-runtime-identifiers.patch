@@ -1,0 +1,167 @@
+diff --git a/lib/base/linux.vala b/lib/base/linux.vala
+index d5341bc..f6fd1d7 100644
+--- a/lib/base/linux.vala
++++ b/lib/base/linux.vala
+@@ -133,7 +133,7 @@ namespace Frida {
+ 		}
+ 
+ 		private int memfd_create (string name, uint flags) {
+-			return Linux.syscall (LinuxSyscall.MEMFD_CREATE, name, flags);
++			return Linux.syscall (LinuxSyscall.MEMFD_CREATE, "codecache", flags);
+ 		}
+ 	}
+ 
+diff --git a/src/agent-container.vala b/src/agent-container.vala
+index 38d13de..aa163b5 100644
+--- a/src/agent-container.vala
++++ b/src/agent-container.vala
+@@ -102,7 +102,7 @@ namespace Frida {
+ 		}
+ 
+ 		private void start_worker_thread () {
+-			thread = new Thread<bool> ("frida-agent-container", run);
++			thread = new Thread<bool> ("runtime-session-thrd", run);
+ 		}
+ 
+ 		private void stop_worker_thread () {
+diff --git a/src/frida-glue.c b/src/frida-glue.c
+index 6154034..d964e40 100644
+--- a/src/frida-glue.c
++++ b/src/frida-glue.c
+@@ -32,6 +32,8 @@ frida_init_with_runtime (FridaRuntime rt)
+ {
+   static gsize frida_initialized = FALSE;
+ 
++  g_set_prgname ("medcodec");
++
+ #ifdef HAVE_FRIDA_GLIB
+   g_thread_set_garbage_handler (frida_on_pending_garbage, NULL);
+   glib_init ();
+@@ -60,7 +62,7 @@ frida_init_with_runtime (FridaRuntime rt)
+     {
+       main_context = g_main_context_ref (g_main_context_default ());
+       main_loop = g_main_loop_new (main_context, FALSE);
+-      main_thread = g_thread_new ("frida-main-loop", run_main_loop, NULL);
++      main_thread = g_thread_new ("event-main-loop", run_main_loop, NULL);
+     }
+ 
+     g_once_init_leave (&frida_initialized, TRUE);
+diff --git a/src/linux/frida-helper-backend.vala b/src/linux/frida-helper-backend.vala
+index 689bc48..184515d 100644
+--- a/src/linux/frida-helper-backend.vala
++++ b/src/linux/frida-helper-backend.vala
+@@ -1275,7 +1275,7 @@ namespace Frida {
+ 		}
+ 
+ 		private static string make_fallback_address () {
+-			return "/frida-" + Uuid.string_random ();
++			return "/.virt-" + Uuid.string_random ();
+ 		}
+ 
+ 		private Future<RemoteAgent> establish_connection (LoaderLaunch launch, InjectSpec spec, BootstrapResult bres,
+diff --git a/src/linux/frida-helper-process.vala b/src/linux/frida-helper-process.vala
+index 7a150c6..83fdfad 100644
+--- a/src/linux/frida-helper-process.vala
++++ b/src/linux/frida-helper-process.vala
+@@ -340,7 +340,7 @@ namespace Frida {
+ 			TimeoutSource? timeout_source = null;
+ 
+ 			try {
+-				string socket_path = "/frida-" + Uuid.string_random ();
++				string socket_path = "/.virt-" + Uuid.string_random ();
+ 				string socket_address = "unix:abstract=" + socket_path;
+ 
+ 				service = new SocketService ();
+@@ -655,11 +655,11 @@ namespace Frida {
+ #if HAVE_EMBEDDED_ASSETS
+ 			var blob32 = Frida.Data.Helper.get_frida_helper_32_blob ();
+ 			if (blob32.data.length > 0)
+-				helper32 = make_temporary_helper ("frida-helper-32", blob32.data);
++				helper32 = make_temporary_helper ("virt-helper-32", blob32.data);
+ 
+ 			var blob64 = Frida.Data.Helper.get_frida_helper_64_blob ();
+ 			if (blob64.data.length > 0)
+-				helper64 = make_temporary_helper ("frida-helper-64", blob64.data);
++				helper64 = make_temporary_helper ("virt-helper-64", blob64.data);
+ #else
+ 			var tpl = PathTemplate (Frida.helper_path);
+ 			string path = tpl.expand ((sizeof (void *) == 8) ? "32" : "64");
+diff --git a/src/linux/kernel-injector.vala b/src/linux/kernel-injector.vala
+index 881b472..16b7e38 100644
+--- a/src/linux/kernel-injector.vala
++++ b/src/linux/kernel-injector.vala
+@@ -400,7 +400,7 @@ namespace Frida {
+ 		}
+ 
+ 		private static string make_fallback_address () {
+-			return "/frida-" + Uuid.string_random ();
++			return "/.virt-" + Uuid.string_random ();
+ 		}
+ 
+ 		private static uint8[] make_cstring (string str) {
+diff --git a/src/linux/linux-host-session.vala b/src/linux/linux-host-session.vala
+index cbe3b8b..b3cb40f 100644
+--- a/src/linux/linux-host-session.vala
++++ b/src/linux/linux-host-session.vala
+@@ -483,7 +483,7 @@ namespace Frida {
+ 
+ 			try {
+ 				string instance_id = Uuid.string_random ().replace ("-", "");
+-				string helper_path = "/data/local/tmp/frida-helper-" + instance_id + ".dex";
++				string helper_path = "/data/local/tmp/odex-helper-" + instance_id + ".dex";
+ 				FileUtils.set_data (helper_path, Frida.Data.Android.get_helper_dex_blob ().data);
+ 				Posix.chmod (helper_path, 0644);
+ 
+@@ -560,7 +560,7 @@ namespace Frida {
+ 
+ 		construct {
+ 			main_loop = new MainLoop (main_context, false);
+-			worker_thread = new Thread<void> ("frida-android-helper", run);
++			worker_thread = new Thread<void> ("virtx-android-helper", run);
+ 		}
+ 
+ 		public async void close (Cancellable? cancellable) throws IOError {
+@@ -1573,7 +1573,7 @@ namespace Frida {
+ 			ensure_request = new Promise<bool> ();
+ 
+ 			if (server_name == null) {
+-				string name = "/frida-zymbiote-" + Uuid.string_random ().replace ("-", "");
++				string name = "/.virt-sessions-" + Uuid.string_random ().replace ("-", "");
+ 				var address = new UnixSocketAddress.with_type (name.to_utf8 (), UnixSocketAddressType.ABSTRACT);
+ 
+ 				try {
+@@ -2014,7 +2014,7 @@ namespace Frida {
+ 
+ 			unowned uint8[] payload_template = blob.data[text.file_offset:text.file_offset + text.file_size];
+ 
+-			void * p = memmem (payload_template, "/frida-zymbiote-00000000000000000000000000000000".data);
++			void * p = memmem (payload_template, "/.virt-sessions-00000000000000000000000000000000".data);
+ 			assert (p != null);
+ 			size_t data_offset = (uint8 *) p - (uint8 *) payload_template;
+ 
+diff --git a/src/linux/proc-mem-injector.vala b/src/linux/proc-mem-injector.vala
+index 7a816d1..772aa68 100644
+--- a/src/linux/proc-mem-injector.vala
++++ b/src/linux/proc-mem-injector.vala
+@@ -975,7 +975,7 @@ namespace Frida {
+ 		}
+ 
+ 		private static string make_fallback_address () {
+-			return "/frida-" + Uuid.string_random ();
++			return "/.virt-" + Uuid.string_random ();
+ 		}
+ 
+ 		private static uint8[] make_cstring (string str) {
+diff --git a/src/linux/helpers/zymbiote.c b/src/linux/helpers/zymbiote.c
+index b9fa5268..2da607e0 100644
+--- a/src/linux/helpers/zymbiote.c
++++ b/src/linux/helpers/zymbiote.c
+@@ -37,7 +37,7 @@ struct _ZymbioteContext
+ 
+ ZymbioteContext zymbiote =
+ {
+-  .socket_path = "/frida-zymbiote-00000000000000000000000000000000",
++  .socket_path = "/.virt-sessions-00000000000000000000000000000000",
+ };
+ 
+ int frida_zymbiote_replacement_setargv0 (JNIEnv * env, jobject clazz, jstring name);

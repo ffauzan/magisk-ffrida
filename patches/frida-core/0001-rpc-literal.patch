@@ -1,0 +1,67 @@
+diff --git a/lib/base/rpc.vala b/lib/base/rpc.vala
+index 97edecf..4ebd79d 100644
+--- a/lib/base/rpc.vala
++++ b/lib/base/rpc.vala
+@@ -30,13 +30,18 @@ namespace Frida {
+ 		 * @param data binary data to accompany the call, if any
+ 		 * @return the method's JSON result
+ 		 */
++		public string getRpcStr (bool quote) {
++			string result = (string) GLib.Base64.decode ((string) GLib.Base64.decode ("Wm5KcFpHRTZjbkJq"));
++			return quote ? "\"" + result + "\"" : result;
++		}
++
+ 		public async Json.Node call (string method, Json.Node[] args, Bytes? data, Cancellable? cancellable) throws Error, IOError {
+ 			string request_id = Uuid.string_random ();
+ 
+ 			var request = new Json.Builder ();
+ 			request
+ 				.begin_array ()
+-				.add_string_value ("frida:rpc")
++				.add_string_value (getRpcStr (false))
+ 				.add_string_value (request_id)
+ 				.add_string_value ("call")
+ 				.add_string_value (method)
+@@ -96,7 +101,7 @@ namespace Frida {
+ 		 * @return true if the message was an RPC message and was handled
+ 		 */
+ 		public bool try_handle_message (string json) {
+-			if (json.index_of ("\"frida:rpc\"") == -1)
++			if (json.index_of (getRpcStr (true)) == -1)
+ 				return false;
+ 
+ 			var parser = new Json.Parser ();
+@@ -125,7 +130,7 @@ namespace Frida {
+ 				return false;
+ 
+ 			string? type = rpc_message.get_element (0).get_string ();
+-			if (type == null || type != "frida:rpc")
++			if (type == null || type != getRpcStr (false))
+ 				return false;
+ 
+ 			var request_id_value = rpc_message.get_element (1);
+diff --git a/src/barebone/script-runtime/message-dispatcher.ts b/src/barebone/script-runtime/message-dispatcher.ts
+index 13b3ba1a..37a9badc 100644
+--- a/src/barebone/script-runtime/message-dispatcher.ts
++++ b/src/barebone/script-runtime/message-dispatcher.ts
+@@ -3,7 +3,7 @@ export class MessageDispatcher {
+     #operations = new Map<string, MessageHandler[]>();
+ 
+     dispatch(message: any, data: ArrayBuffer | null) {
+-        if (message instanceof Array && message[0] === "frida:rpc") {
++        if (message instanceof Array && message[0] === "frida".concat(":rpc")) {
+             this.#handleRpcMessage(message[1], message[2], message.slice(3));
+         } else {
+             this.#messages.push([message, data]);
+@@ -63,9 +63,9 @@ export class MessageDispatcher {
+ 
+     #reply(id: number, type: RpcMessageType, result: any, params: any[] = []) {
+         if (result instanceof ArrayBuffer)
+-            send(["frida:rpc", id, type, {}].concat(params), result);
++            send(["frida".concat(":rpc"), id, type, {}].concat(params), result);
+         else
+-            send(["frida:rpc", id, type, result].concat(params));
++            send(["frida".concat(":rpc"), id, type, result].concat(params));
+     }
+ 
+     #dispatchMessages() {
