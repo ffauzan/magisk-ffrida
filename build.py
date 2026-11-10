@@ -86,7 +86,7 @@ def create_updater(project_tag: str):
         "version": project_tag,
         "versionCode": version_code(project_tag),
         "zipUrl": f"https://github.com/{REPO}/releases/download/{project_tag}/MagiskFrida-{project_tag}.zip",
-        "changelog": f"https://raw.githubusercontent.com/{REPO}/master/CHANGELOG.md",
+        "changelog": f"https://github.com/{REPO}/releases/tag/{project_tag}",
     }
     (BUILD / "updater.json").write_text(json.dumps(updater, indent=2) + "\n")
 
